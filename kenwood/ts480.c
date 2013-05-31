@@ -36,8 +36,12 @@
 #define TS480_VFO (RIG_VFO_A|RIG_VFO_B)
 
 #define TS480_LEVEL_ALL (RIG_LEVEL_RFPOWER|RIG_LEVEL_AF|RIG_LEVEL_RF|RIG_LEVEL_SQL|RIG_LEVEL_AGC|RIG_LEVEL_PREAMP|RIG_LEVEL_ATT|RIG_LEVEL_MICGAIN|RIG_LEVEL_KEYSPD|RIG_LEVEL_VOXGAIN|RIG_LEVEL_SLOPE_LOW|RIG_LEVEL_SLOPE_HIGH|RIG_LEVEL_NR|RIG_LEVEL_RAWSTR)
-#define TS480_FUNC_ALL (RIG_FUNC_NB|RIG_FUNC_COMP|RIG_FUNC_VOX|RIG_FUNC_NR|RIG_FUNC_BC|RIG_FUNC_TSQL)
+#define TS480_FUNC_ALL (RIG_FUNC_NB|RIG_FUNC_COMP|RIG_FUNC_VOX|RIG_FUNC_NR|RIG_FUNC_BC|RIG_FUNC_TSQL|RIG_FUNC_RIT|RIG_FUNC_XIT|RIG_FUNC_TONE)
 
+static const struct confparams kenwood_ts480_ext_parms[] = {
+  { TOK_, "option", "Option desc", "Option desc 2",
+    NULL, RIG_CONF_NUMERIC,{ .n = { 0, 10, 1 } } }
+};
 
 /*
  * kenwood_ts480_get_info
@@ -496,6 +500,7 @@ const struct rig_caps ts480_caps = {
   .has_set_func = TS480_FUNC_ALL,
   .set_func = kenwood_set_func,
   .get_func = kenwood_get_func,
+  .extparms = kenwood_ts480_ext_parms,
 };
 
 
