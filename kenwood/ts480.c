@@ -39,8 +39,6 @@
 #define TS480_FUNC_ALL (RIG_FUNC_NB|RIG_FUNC_COMP|RIG_FUNC_VOX|RIG_FUNC_NR|RIG_FUNC_BC|RIG_FUNC_TSQL|RIG_FUNC_RIT|RIG_FUNC_XIT|RIG_FUNC_TONE)
 
 static const struct confparams kenwood_ts480_ext_parms[] = {
-  { TOK_, "option", "Option desc", "Option desc 2",
-    NULL, RIG_CONF_NUMERIC,{ .n = { 0, 10, 1 } } }
 };
 
 /*
