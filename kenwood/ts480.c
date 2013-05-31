@@ -35,8 +35,8 @@
 #define TS480_AM_TX_MODES RIG_MODE_AM
 #define TS480_VFO (RIG_VFO_A|RIG_VFO_B)
 
-#define TS480_LEVEL_ALL (RIG_LEVEL_RFPOWER|RIG_LEVEL_AF|RIG_LEVEL_RF|RIG_LEVEL_SQL|RIG_LEVEL_AGC)
-#define TS480_FUNC_ALL (RIG_FUNC_NB|RIG_FUNC_COMP|RIG_FUNC_VOX|RIG_FUNC_NR|RIG_FUNC_NR|RIG_FUNC_BC)
+#define TS480_LEVEL_ALL (RIG_LEVEL_RFPOWER|RIG_LEVEL_AF|RIG_LEVEL_RF|RIG_LEVEL_SQL|RIG_LEVEL_AGC|RIG_LEVEL_PREAMP|RIG_LEVEL_ATT|RIG_LEVEL_MICGAIN|RIG_LEVEL_KEYSPD|RIG_LEVEL_VOXGAIN|RIG_LEVEL_SLOPE_LOW|RIG_LEVEL_SLOPE_HIGH|RIG_LEVEL_NR|RIG_LEVEL_RAWSTR)
+#define TS480_FUNC_ALL (RIG_FUNC_NB|RIG_FUNC_COMP|RIG_FUNC_VOX|RIG_FUNC_NR|RIG_FUNC_BC|RIG_FUNC_TSQL)
 
 
 /*
@@ -132,6 +132,34 @@ kenwood_ts480_set_level (RIG * rig, vfo_t vfo, setting_t level, value_t val)
       sprintf (levelbuf, "GT%03d", kenwood_val);
       break;
 
+    case RIG_LEVEL_MICGAIN:
+      kenwood_val = val.f * 100;	/* possible values for TS480 are 000..100  */
+      sprintf (levelbuf, "MG%03d", kenwood_val);
+      break;
+
+    case RIG_LEVEL_VOXGAIN:
+      kenwood_val = val.f * 9.0;	/* possible values for TS480 are 000..009 */
+      sprintf (levelbuf, "VG%03d", kenwood_val);
+      break;
+
+    case RIG_LEVEL_NR:
+      kenwood_val = val.f * 9.0;	/* possible values for TS480 are 00..09 */
+      sprintf (levelbuf, "RL%02d", kenwood_val);
+      break;
+
+    /* Delegate to kenwood_set_level */
+    case RIG_LEVEL_PREAMP:
+    case RIG_LEVEL_ATT:
+    case RIG_LEVEL_KEYSPD:
+    case RIG_LEVEL_SLOPE_LOW:
+    case RIG_LEVEL_SLOPE_HIGH:
+      return kenwood_set_level(rig, vfo, level, val);
+
+    /* Writing not implemented */
+    case RIG_LEVEL_RAWSTR:
+      rig_debug (RIG_DEBUG_ERR, "read-only set_level %d", level);
+      return -RIG_ENIMPL;
+
     default:
       rig_debug (RIG_DEBUG_ERR, "Unsupported set_level %d", level);
       return -RIG_EINVAL;
@@ -152,6 +180,7 @@ kenwood_ts480_get_level (RIG * rig, vfo_t vfo, setting_t level, value_t * val)
   size_t ack_len = 50;
   int levelint;
   int retval;
+  int i;
 
   switch (level)
     {
@@ -221,15 +250,85 @@ kenwood_ts480_get_level (RIG * rig, vfo_t vfo, setting_t level, value_t * val)
 	}
       return RIG_OK;
 
+    case RIG_LEVEL_ATT:
+      retval = kenwood_safe_transaction(rig, "RA", ackbuf, ack_len, 7);
+      if (retval != RIG_OK)
+	return retval;
+
+      ackbuf[4] = '\0'; /* RAXX00 */
+      sscanf(ackbuf+2, "%d", &levelint);
+      if (levelint == 0) {
+	val->i = 0;
+      } else {
+	for (i=0; i<levelint && i<MAXDBLSTSIZ; i++) {
+	  if (rig->state.attenuator[i] == 0) {
+	    rig_debug(RIG_DEBUG_ERR, "%s: "
+		      "unexpected att level %d\n",
+		      __func__, levelint);
+	    return -RIG_EPROTO;
+	  }
+	}
+	if (i != levelint)
+	  return -RIG_EINTERNAL;
+	val->i = rig->state.attenuator[i-1];
+      }
+      break;
+
     case RIG_LEVEL_MICGAIN:
+      retval = kenwood_transaction (rig, "MG", 2, ackbuf, &ack_len);
+      if (RIG_OK != retval)
+	return retval;
+      if (6 != ack_len)
+	return -RIG_EPROTO;
+      if (1 != sscanf (&ackbuf[2], "%d", &levelint))
+	return -RIG_EPROTO;
+      val->f = (float)levelint / 100.0;
+      return RIG_OK;
+
+    case RIG_LEVEL_VOXGAIN:
+      retval = kenwood_transaction (rig, "VG", 2, ackbuf, &ack_len);
+      if (RIG_OK != retval)
+	return retval;
+      if (6 != ack_len)
+	return -RIG_EPROTO;
+      if (1 != sscanf (&ackbuf[2], "%d", &levelint))
+	return -RIG_EPROTO;
+      val->f = (float)levelint / 9.0;
+      return RIG_OK;
+
+    case RIG_LEVEL_NR:
+      retval = kenwood_transaction (rig, "NR", 2, ackbuf, &ack_len);
+      if (RIG_OK != retval)
+	return retval;
+      if (6 != ack_len)
+	return -RIG_EPROTO;
+      if (1 != sscanf (&ackbuf[2], "%d", &levelint))
+	return -RIG_EPROTO;
+      val->f = (float)levelint / 9.0;
+      return RIG_OK;
+
+    case RIG_LEVEL_RAWSTR:
+      retval = kenwood_safe_transaction(rig, "SM0", ackbuf, ack_len, 8);
+      if (retval != RIG_OK)
+	return retval;
+      if (1 != sscanf(ackbuf+3, "%d", &levelint))
+	return -RIG_EPROTO;
+      val->i = levelint;
+      return RIG_OK;
+
+    /* Delegate to generic kenwood_get_level */
     case RIG_LEVEL_PREAMP:
+    case RIG_LEVEL_KEYSPD:
+    case RIG_LEVEL_SLOPE_LOW:
+    case RIG_LEVEL_SLOPE_HIGH:
+      return kenwood_get_level(rig, vfo, level, val);
+
+    /* Unimplemented */
     case RIG_LEVEL_IF:
     case RIG_LEVEL_APF:
-    case RIG_LEVEL_NR:
     case RIG_LEVEL_PBT_IN:
     case RIG_LEVEL_PBT_OUT:
     case RIG_LEVEL_CWPITCH:
-    case RIG_LEVEL_KEYSPD:
     case RIG_LEVEL_NOTCHF:
     case RIG_LEVEL_COMP:
     case RIG_LEVEL_BKINDL:
